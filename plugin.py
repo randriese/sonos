@@ -1,10 +1,11 @@
 #           Sonos Plugin
 #
 #           Original author:    Tester22, 2017, https://github.com/tester22/Domoticz-Sonos
-#           Current author:     G3rard, 2017
+#           Previous author:    G3rard, 2017, https://github.com/gerard33/sonos
+#           Current author:     Roland Andriese, 2018, https://github.com/randriese/sonos
 #
 """
-<plugin key="Sonos" name="Sonos Players" author="G3rard" version="0.91" wikilink="https://github.com/gerard33/sonos" externallink="https://sonos.com/">
+<plugin key="Sonos" name="Sonos Players" author="Roland Andriese" version="0.92" wikilink="https://github.com/randriese/sonos" externallink="https://sonos.com/">
     <params>
         <param field="Address" label="IP Address" width="200px" required="true" default="192.168.1.161"/>
         <param field="Mode1" label="Update interval (sec)" width="100px" required="true" default="30"/>
@@ -55,10 +56,12 @@ class BasePlugin:
     creator = None              #artist or radio station
     title = None                #name of song
     radioState = 0              #1=radio playing
+    opticalState = 0            #1=optical playing
     sourceOptions = {}          #dict with options for control
     sourceOptions2 = {}         #dict with options for control
     sonosControl = 0            #selector switch value control
     sonosRadio = 0              #selector switch value radio
+    sonosOptical = 0            #selector switch value optical
     CurrentURI = None           #url for radio from GetMediaInfo
     TrackURI = None             #url for song from GetPositionInfo
     RelTime = None              #time played of song from GetPositionInfo
@@ -224,8 +227,10 @@ class BasePlugin:
             #saveTrackURI = saveTrackURI.split("?")[0]
             LogMessage(">> Show what is currently playing before switching to notification")
             LogMessage("Current volume: " + str(saveVolume))
-            if self.radioState == 1:
+            if self.radioState == 1 & self.opticalState == 0 & self.playerState == 0 :
                 LogMessage("Current URI: " + str(saveURI) + ". Current radio station: " + str(saveStation))
+            elif self.opticalState == 1 & self.radioState == 0 & self.playerState == 0:
+                LogMessage("Currently playing from toslink")
             else:
                 LogMessage("Currently playing: " + str(savePositionInfo) + ". Current URI: " + str(saveURI))
                 LogMessage("Current time in song: " + str(saveTime) + ". Number: " +str(saveTrack))
@@ -342,6 +347,8 @@ class BasePlugin:
                 ###Dit zorgt ervoor dat de switch aangaat als de radio aan is, maar zorgt ook voor dat switch altijd op svalue 0 wordt voor update met SyncRadioStation
                 #UpdateDevice(4, 1, str(self.sonosRadio))
                 self.SyncRadioStation()
+            elif self.opticalState == 1:
+                LogMessage("Sonos is playing from optical connection")
             else:
                 self.sonosRadio = 0
                 UpdateDevice(4, 1, str(self.sonosRadio))
@@ -406,13 +413,21 @@ class BasePlugin:
         # Check what is playing on Sonos
         if strData.find('TrackMetaData') > 0:
             if extractTagValue('TrackMetaData', strData).upper() == "NOT_IMPLEMENTED":
-                self.mediaDescription = "Grouped"
-                self.playerState = 0
+                if 'TrackURI' in strData:
+                    if 'SPDIF' in extractTagValue('TrackURI', strData).upper():
+                        self.mediaDescription = 'Optical'
+                        self.playerState = 1
+                        self.opticalState = 1
+                else:
+                    self.mediaDescription = "Grouped"
+                    self.playerState = 0
+                    self.opticalState = 0
                 UpdateDevice(1, self.playerState, self.mediaDescription)
             else:
                 strData = unescape(strData)
                 if 'dc:creator' in strData and self.playerState == 1:
                     self.radioState = 0
+                    self.opticalState = 0
                     self.creator = extractTagValue('dc:creator', strData)
                     self.title = extractTagValue('dc:title', strData)
                     dash = "" if not self.title else " - "
@@ -420,6 +435,7 @@ class BasePlugin:
                     UpdateDevice(1, self.playerState, self.mediaDescription)
                 else: #radiostation
                     self.radioState = 1
+                    self.opticalState = 0
                     LogMessage('Sonos playing radio')
                     self.title = extractTagValue('r:streamContent', strData)
                     if self.title == "ZPSTR_CONNECTING": self.title = ''
