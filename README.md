@@ -1,7 +1,3 @@
-# No longer maintained
-*This plugin is no longer maintained. Feel free to fork this repo and add stuff or change the script :-)*
-
-
 # Sonos - Domoticz Python plugin
 **Domoticz Python plugin for Sonos**
 
